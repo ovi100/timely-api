@@ -18,6 +18,6 @@ app.use("/api/users", userRoutes);
 app.use("/api/employees", employeeRoutes);
 app.use("/api/outlets", outletRoutes);
 
-app.get("/health", (_req, res) => res.json({ ok: true }));
+app.get("/", (_req, res) => res.json({ status: true, message: 'API is running successfully' }));
 
 export default app;
