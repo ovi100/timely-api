@@ -4,32 +4,40 @@ const isValidDate = (date) => /^\d{4}-\d{2}-\d{2}$/.test(date);
 
 /** GET /api/employees */
 export const getEmployees = async (req, res) => {
-  const { from, to, id, order } = req.query;
-  const query = {}, sort = {};
-  const errorObject = { status: false, message: "Date must be YYYY-MM-DD format" };
+  try {
 
-  if (id) query.staff_id = id;
+    const { from, to, id, order } = req.query;
+    const query = {}, sort = {};
+    const errorObject = { status: false, message: "Date must be YYYY-MM-DD format" };
 
-  if (order) sort.date = order.toLowerCase() === "asc" ? 1 : -1;
+    if (id) query.staff_id = id;
 
-  if (from || to) {
-    query.date = {};
-    if (from) {
-      if (!isValidDate(from)) {
-        return res.status(400).json(errorObject);
+    if (order) sort.date = order.toLowerCase() === "asc" ? 1 : -1;
+
+    if (from || to) {
+      query.date = {};
+      if (from) {
+        if (!isValidDate(from)) {
+          return res.status(400).json(errorObject);
+        }
+        query.date.$gte = new Date(from).toISOString();
       }
-      query.date.$gte = from;
-    }
-    if (to) {
-      if (!isValidDate(to)) {
-        return res.status(400).json(errorObject);
+      if (to) {
+        if (!isValidDate(to)) {
+          return res.status(400).json(errorObject);
+        }
+        query.date.$lte = new Date(to).toISOString();
       }
-      query.date.$lte = to;
     }
+
+    console.log(query) //{ date: { '$gte': '2023-06-10', '$lte': '2023-06-20' } }
+
+    const employees = await Employee.find(query).sort(sort).lean();
+    res.json({ employees, status: employees.length > 0 });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ status: false, message: "Internal server error" });
   }
-
-  const employees = await Employee.find(query).sort(sort).lean();
-  res.json({ employees, status: employees.length > 0 });
 };
 
 /** POST /api/employees */
@@ -67,7 +75,9 @@ export const getEmployeeById = async (req, res) => {
  */
 export const updateEmployeeToday = async (req, res) => {
   const { id } = req.params;
-  const presentDate = new Date().toISOString().split("T")[0];
+  const date = new Date();
+  const from = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 0, 0, 0, 0));
+  const to = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 23, 59, 59, 999));
 
   const exists = await Employee.exists({ staff_id: id });
   if (!exists) {
@@ -75,15 +85,21 @@ export const updateEmployeeToday = async (req, res) => {
   }
 
   const result = await Employee.updateOne(
-    { staff_id: id, date: presentDate },
+    {
+      staff_id: id,
+      date: { $gte: from, $lte: to }
+    },
     { $set: req.body }
   );
 
   if (result.modifiedCount || result.matchedCount) {
     return res.json({ status: true, message: "Employee is updated successfully" });
   }
+
   return res.json({ status: false, message: "Employee isn't updated successfully" });
 };
+
+
 
 /** DELETE /api/employees/:id */
 export const deleteEmployeeById = async (req, res) => {
@@ -99,15 +115,4 @@ export const deleteEmployeeById = async (req, res) => {
     return res.json({ status: true, message: "Employee is deleted successfully" });
   }
   return res.json({ status: false, message: "Employee isn't deleted successfully" });
-};
-
-/** GET /api/employees/range/:startDate/:endDate */
-export const getEmployeesByDateRange = async (req, res) => {
-  const { startDate, endDate } = req.params;
-
-  const results = await Employee.find({
-    date: { $gte: startDate, $lte: endDate }
-  }).lean();
-
-  return res.json({ employees: results, status: results.length > 0 });
 };
