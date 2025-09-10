@@ -6,6 +6,7 @@ const isValidDate = (date) => /^\d{4}-\d{2}-\d{2}$/.test(date);
 export const getEmployees = async (req, res) => {
   const { from, to, id, order } = req.query;
   const query = {}, sort = {};
+  const errorObject = { status: false, message: "Date must be YYYY-MM-DD format" };
 
   if (id) query.staff_id = id;
 
@@ -13,21 +14,20 @@ export const getEmployees = async (req, res) => {
 
   if (from || to) {
     query.date = {};
-    const errorResponse = res.status(400).json({ status: false, message: "Date must be YYYY-MM-DD format" });
     if (from) {
       if (!isValidDate(from)) {
-        return errorResponse;
+        return res.status(400).json(errorObject);
       }
       query.date.$gte = from;
     }
     if (to) {
       if (!isValidDate(to)) {
-        return errorResponse;
+        return res.status(400).json(errorObject);
       }
       query.date.$lte = to;
     }
   }
-  
+
   const employees = await Employee.find(query).sort(sort).lean();
   res.json({ employees, status: employees.length > 0 });
 };
